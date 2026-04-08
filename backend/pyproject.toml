@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "crm-backend"
+version = "0.1.0"
+description = "CRM backend in FastAPI"
+
+[tool.poetry.dependencies]
+python = ">=3.10"
+fastapi = "^0.110.0"
+uvicorn = "^0.23.0"
+supabase = "^0.6.0"
+python-dotenv = "^1.0.0"
+pydantic = "^1.10.2"
+databases = { version = "^0.6.0", extras = ["postgresql"] }
+httpx = "^0.28.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.4"
+pytest-asyncio = "^0.21"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

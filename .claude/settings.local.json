@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip --version)",
+      "Bash(npm --version)",
+      "Bash(venv/Scripts/python -c \"from app.main import app; print\\('OK'\\)\")",
+      "Bash(venv/Scripts/python -c ':*)",
+      "Bash(npm run:*)",
+      "Bash(curl -s http://localhost:3000/api/dashboard/stats)",
+      "Bash(curl -s http://localhost:3000/api/customers)",
+      "Bash(curl -s http://localhost:3000/api/products)",
+      "Bash(curl -s http://localhost:3000/api/kanban/cards)",
+      "Bash(curl -s http://localhost:3000/api/orders)",
+      "Bash(npx next:*)",
+      "mcp__claude_ai_Supabase__list_tables"
+    ]
+  }
+}
