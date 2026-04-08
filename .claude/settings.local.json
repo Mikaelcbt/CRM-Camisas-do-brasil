@@ -12,7 +12,11 @@
       "Bash(curl -s http://localhost:3000/api/kanban/cards)",
       "Bash(curl -s http://localhost:3000/api/orders)",
       "Bash(npx next:*)",
-      "mcp__claude_ai_Supabase__list_tables"
+      "mcp__claude_ai_Supabase__list_tables",
+      "Bash(vercel --version)",
+      "mcp__claude_ai_Supabase__list_projects",
+      "Bash(npm install:*)",
+      "Bash(vercel whoami:*)"
     ]
   }
 }
