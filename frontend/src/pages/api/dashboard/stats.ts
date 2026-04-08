@@ -11,23 +11,38 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-    const { data: ordersData, count: ordersCount } = await supabase
-      .from('orders')
-      .select('total, status', { count: 'exact' })
-      .gte('created_at', monthStart);
+    const [{ data: monthlyData, count: ordersCount }, { data: pendingData }] = await Promise.all([
+      supabase
+        .from('orders')
+        .select('total, status', { count: 'exact' })
+        .gte('created_at', monthStart),
+      supabase
+        .from('orders')
+        .select('id, customer_name, total, created_at')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false }),
+    ]);
 
-    const monthlyRevenue = (ordersData ?? [])
-      .filter((o) => o.status !== 'cancelled')
+    const monthlyRevenue = (monthlyData ?? [])
+      .filter((o) => o.status === 'paid')
       .reduce((sum: number, o: { total: number }) => sum + Number(o.total), 0);
 
-    const pendingOrders = (ordersData ?? []).filter((o) => o.status === 'pending').length;
+    const pendingList = pendingData ?? [];
+    const pendingValue = pendingList.reduce((sum: number, o: { total: number }) => sum + Number(o.total), 0);
 
     res.status(200).json({
       total_customers: customersRes.count ?? 0,
       total_products: productsRes.count ?? 0,
       monthly_revenue: Math.round(monthlyRevenue * 100) / 100,
       monthly_orders: ordersCount ?? 0,
-      pending_orders: pendingOrders,
+      pending_orders: pendingList.length,
+      pending_value: Math.round(pendingValue * 100) / 100,
+      pending_list: pendingList.map((o) => ({
+        id: o.id,
+        customer_name: o.customer_name ?? '—',
+        total: Number(o.total),
+        created_at: o.created_at,
+      })),
     });
   } catch (e) {
     res.status(500).json({ detail: 'Internal server error' });

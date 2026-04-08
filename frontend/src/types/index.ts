@@ -109,10 +109,19 @@ export interface OrderListDetail extends OrderList {
   entries: ListEntry[];
 }
 
+export interface PendingOrderRow {
+  id: number;
+  customer_name: string;
+  total: number;
+  created_at: string;
+}
+
 export interface DashboardStats {
   total_customers: number;
   total_products: number;
   monthly_revenue: number;
   monthly_orders: number;
   pending_orders: number;
+  pending_value: number;
+  pending_list: PendingOrderRow[];
 }

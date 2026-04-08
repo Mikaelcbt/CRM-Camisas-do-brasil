@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { getDashboardStats } from '../utils/api';
-import type { DashboardStats } from '../types';
+import type { DashboardStats, PendingOrderRow } from '../types';
 
 function SkeletonCard() {
   return (
@@ -97,17 +97,76 @@ export default function Dashboard() {
             <StatCard
               title="Receita do Mês"
               value={fmt(stats?.monthly_revenue ?? 0)}
-              sub={`${stats?.monthly_orders ?? 0} pedidos`}
+              sub={`${stats?.monthly_orders ?? 0} pedidos pagos`}
               accent
             />
             <StatCard
-              title="Pendentes"
-              value={String(stats?.pending_orders ?? 0)}
-              sub="aguardando pagamento"
+              title="A Receber"
+              value={fmt(stats?.pending_value ?? 0)}
+              sub={`${stats?.pending_orders ?? 0} pendentes`}
             />
           </>
         )}
       </div>
+
+      {/* Pending orders table */}
+      {!loading && (stats?.pending_list?.length ?? 0) > 0 && (
+        <div
+          className="rounded-xl"
+          style={{ background: '#111113', border: '1px solid rgba(255,255,255,0.06)', marginBottom: 28 }}
+        >
+          <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <p style={{ fontSize: '12px', fontWeight: 600, color: '#52525b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Pedidos Pendentes
+            </p>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  {['#', 'Cliente', 'Data', 'Valor'].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: '8px 20px',
+                        textAlign: 'left',
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        color: '#52525b',
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(stats?.pending_list ?? []).map((row: PendingOrderRow, i: number) => (
+                  <tr
+                    key={row.id}
+                    style={{ borderTop: i === 0 ? 'none' : '1px solid rgba(255,255,255,0.04)' }}
+                  >
+                    <td style={{ padding: '10px 20px', fontSize: '12px', color: '#52525b', fontVariantNumeric: 'tabular-nums' }}>
+                      #{row.id}
+                    </td>
+                    <td style={{ padding: '10px 20px', fontSize: '13px', color: '#d4d4d8', fontWeight: 500 }}>
+                      {row.customer_name}
+                    </td>
+                    <td style={{ padding: '10px 20px', fontSize: '12px', color: '#71717a', fontVariantNumeric: 'tabular-nums' }}>
+                      {new Date(row.created_at).toLocaleDateString('pt-BR')}
+                    </td>
+                    <td style={{ padding: '10px 20px', fontSize: '13px', color: '#fbbf24', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      {fmt(row.total)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Quick links */}
       <div
