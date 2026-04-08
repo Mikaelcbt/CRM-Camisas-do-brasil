@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useAuth } from '../contexts/AuthContext';
 
 interface NavLink {
   name: string;
@@ -55,8 +56,24 @@ function IconList() {
   );
 }
 
+function IconLogout() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+    </svg>
+  );
+}
+
 export default function Sidebar() {
   const router = useRouter();
+  const { user, signOut } = useAuth();
+
+  async function handleSignOut() {
+    await signOut();
+    router.replace('/login');
+  }
+
+  const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário';
 
   const links: NavLink[] = [
     { name: 'Dashboard',  href: '/',          icon: <IconDashboard /> },
@@ -144,12 +161,74 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Footer */}
+      {/* User footer */}
       <div
-        className="px-4 py-3"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
+        style={{
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          padding: '12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}
       >
-        <p style={{ fontSize: '11px', color: '#3f3f46' }}>v1.0</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 6px' }}>
+          <div
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ color: '#fff', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' }}>
+              {displayName.charAt(0)}
+            </span>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: '12px', fontWeight: 500, color: '#d4d4d8', margin: 0, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {displayName}
+            </p>
+            <p style={{ fontSize: '10px', color: '#52525b', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user?.email}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={handleSignOut}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '7px 10px',
+            borderRadius: '7px',
+            fontSize: '13px',
+            fontWeight: 400,
+            color: '#71717a',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            width: '100%',
+            transition: 'all 0.15s',
+            textAlign: 'left',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)';
+            (e.currentTarget as HTMLButtonElement).style.color = '#f87171';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+            (e.currentTarget as HTMLButtonElement).style.color = '#71717a';
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center' }}>
+            <IconLogout />
+          </span>
+          Sair
+        </button>
       </div>
     </aside>
   );
