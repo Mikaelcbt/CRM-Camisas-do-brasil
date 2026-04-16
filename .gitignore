@@ -6,6 +6,8 @@ __pycache__/
 dist/
 build/
 .env.*
+.next/
+frontend/tsconfig.tsbuildinfo
 
 venv/
 
