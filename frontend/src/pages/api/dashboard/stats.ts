@@ -18,7 +18,7 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
         .gte('created_at', monthStart),
       supabase
         .from('orders')
-        .select('id, customer_name, total, created_at')
+        .select('id, total, created_at, customers(full_name)')
         .eq('status', 'pending')
         .order('created_at', { ascending: false }),
     ]);
@@ -37,9 +37,9 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
       monthly_orders: ordersCount ?? 0,
       pending_orders: pendingList.length,
       pending_value: Math.round(pendingValue * 100) / 100,
-      pending_list: pendingList.map((o) => ({
+      pending_list: pendingList.map((o: Record<string, unknown>) => ({
         id: o.id,
-        customer_name: o.customer_name ?? '—',
+        customer_name: (o.customers as { full_name: string } | null)?.full_name ?? '—',
         total: Number(o.total),
         created_at: o.created_at,
       })),
