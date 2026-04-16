@@ -143,7 +143,7 @@ export default function RegisterPage() {
                 Conta criada!
               </h2>
               <p style={{ fontSize: '13px', color: '#71717a', marginBottom: '24px', lineHeight: 1.5 }}>
-                Verifique seu email para confirmar o cadastro e depois faça login.
+                Verifique seu email para confirmar o cadastro. Cheque também a pasta de spam.
               </p>
               <Link
                 href="/login"

@@ -29,7 +29,11 @@ export default function LoginPage() {
     });
 
     if (authError) {
-      setError('Email ou senha incorretos.');
+      if (authError.message.toLowerCase().includes('not confirmed') || authError.message.toLowerCase().includes('email')) {
+        setError('Confirme seu email antes de entrar. Verifique sua caixa de entrada (e spam).');
+      } else {
+        setError('Email ou senha incorretos.');
+      }
       setSubmitting(false);
     } else {
       router.replace('/');
