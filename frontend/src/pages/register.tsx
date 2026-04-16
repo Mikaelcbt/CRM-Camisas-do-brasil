@@ -58,9 +58,13 @@ export default function RegisterPage() {
     });
 
     if (authError) {
-      setError(authError.message === 'User already registered'
-        ? 'Este email já está cadastrado.'
-        : 'Erro ao criar conta. Tente novamente.');
+      if (authError.message === 'User already registered') {
+        setError('Este email já está cadastrado.');
+      } else if (authError.message.includes('fetch') || authError.message.includes('supabaseUrl')) {
+        setError('Erro de configuração: as variáveis de ambiente do Supabase não estão definidas.');
+      } else {
+        setError(authError.message);
+      }
       setSubmitting(false);
     } else {
       setSuccess(true);
