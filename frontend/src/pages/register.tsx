@@ -60,8 +60,6 @@ export default function RegisterPage() {
     if (authError) {
       if (authError.message === 'User already registered') {
         setError('Este email já está cadastrado.');
-      } else if (authError.message.includes('fetch') || authError.message.includes('supabaseUrl')) {
-        setError('Erro de configuração: as variáveis de ambiente do Supabase não estão definidas.');
       } else {
         setError(authError.message);
       }
