@@ -1,9 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../../lib/supabase';
+import { withAuth } from '../../../lib/withAuth';
 
 const VALID_STATUSES = new Set(['pending', 'paid', 'delivered', 'cancelled']);
 
-/** Map order status → kanban pipeline stage */
 const STATUS_TO_KANBAN: Record<string, string> = {
   pending:   'pedido',
   paid:      'pago',
@@ -27,7 +27,7 @@ async function fetchOrder(id: number) {
   };
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default withAuth(async function handler(req: NextApiRequest, res: NextApiResponse) {
   const id = Number(req.query.id);
   if (isNaN(id)) return res.status(400).json({ detail: 'ID inválido' });
 
@@ -51,7 +51,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { error } = await supabase.from('orders').update(payload).eq('id', id);
     if (error) return res.status(400).json({ detail: error.message });
 
-    // Auto-move the customer's kanban card when status changes
     if (status && STATUS_TO_KANBAN[status]) {
       const { data: orderRow } = await supabase
         .from('orders')
@@ -77,4 +76,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   return res.status(405).json({ detail: 'Method not allowed' });
-}
+});

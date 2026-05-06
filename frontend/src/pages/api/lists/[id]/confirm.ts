@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../../../lib/supabase';
+import { withAuth } from '../../../../lib/withAuth';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default withAuth(async function handler(req: NextApiRequest, res: NextApiResponse) {
   const listId = Number(req.query.id);
   if (!listId) return res.status(400).json({ detail: 'ID inválido' });
 
@@ -101,4 +102,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   await supabase.from('order_lists').update({ status: 'confirmed' }).eq('id', listId);
 
   return res.status(200).json({ message: 'Lista confirmada', orders_created: ordersCreated });
-}
+});

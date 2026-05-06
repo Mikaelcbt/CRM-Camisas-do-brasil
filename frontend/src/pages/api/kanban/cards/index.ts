@@ -1,9 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../../../lib/supabase';
+import { withAuth } from '../../../../lib/withAuth';
 
 const VALID_STATUSES = new Set(['novo', 'contato', 'pedido', 'pago', 'entregue']);
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default withAuth(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
     const { data, error } = await supabase
       .from('kanban_cards')
@@ -42,4 +43,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   return res.status(405).json({ detail: 'Method not allowed' });
-}
+});

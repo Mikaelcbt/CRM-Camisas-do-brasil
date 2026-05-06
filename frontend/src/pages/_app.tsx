@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import type { AppProps } from 'next/app';
 import { useRouter } from 'next/router';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import { ToastProvider } from '../contexts/ToastContext';
 import Layout from '../components/Layout';
 
 function AppContent({ Component, pageProps }: AppProps) {
@@ -38,7 +39,9 @@ function AppContent({ Component, pageProps }: AppProps) {
 export default function App(props: AppProps) {
   return (
     <AuthProvider>
-      <AppContent {...props} />
+      <ToastProvider>
+        <AppContent {...props} />
+      </ToastProvider>
     </AuthProvider>
   );
 }

@@ -53,6 +53,15 @@ body {
   100% { background-position:  600px 0; }
 }
 
+/* Toast animation */
+@keyframes toastSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Spin */
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* Input autofill dark override */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,

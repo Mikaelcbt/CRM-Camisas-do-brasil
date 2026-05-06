@@ -1,9 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../../../lib/supabase';
+import { withAuth } from '../../../../lib/withAuth';
 
 const VALID_STATUSES = new Set(['novo', 'contato', 'pedido', 'pago', 'entregue']);
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default withAuth(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ detail: 'Method not allowed' });
 
   const { card_id, new_status } = req.body;
@@ -19,4 +20,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (error) return res.status(400).json({ detail: error.message });
   return res.status(200).json({ message: 'Card movido', data });
-}
+});

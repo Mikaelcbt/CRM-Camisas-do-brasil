@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getProducts, createProduct, updateProduct, deleteProduct, uploadProductImage } from '../../utils/api';
+import { useToast } from '../../contexts/ToastContext';
 import type { Product } from '../../types';
 
 const EMPTY_FORM = { name: '', normal_price: '', photo_url: '' };
@@ -162,6 +163,7 @@ function ProductCard({ product, onEdit, onDelete }: { product: Product; onEdit: 
 }
 
 export default function Products() {
+  const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -219,7 +221,7 @@ export default function Products() {
       const url = await uploadProductImage(file);
       setFormData((prev) => ({ ...prev, photo_url: url }));
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Erro ao fazer upload da imagem');
+      toast.error(err instanceof Error ? err.message : 'Erro ao fazer upload da imagem');
       setPreviewUrl(null);
     } finally {
       setUploading(false);
@@ -243,7 +245,7 @@ export default function Products() {
       closeModal();
       loadProducts();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Erro ao salvar produto');
+      toast.error(e instanceof Error ? e.message : 'Erro ao salvar produto');
     } finally {
       setSubmitting(false);
     }
@@ -255,7 +257,7 @@ export default function Products() {
       setDeleteConfirmId(null);
       loadProducts();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Erro ao excluir produto');
+      toast.error(e instanceof Error ? e.message : 'Erro ao excluir produto');
     }
   }
 

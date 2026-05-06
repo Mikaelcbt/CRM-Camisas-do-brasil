@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import {
   getKanbanCards, createKanbanCard, deleteKanbanCard, moveKanbanCard,
-  getProducts, createOrder, updateOrder,
+  getProducts, getOrders, createOrder, updateOrder,
 } from '../../utils/api';
+import { useToast } from '../../contexts/ToastContext';
 import type { KanbanCard, KanbanStatus, Product } from '../../types';
 
 interface Col {
@@ -13,7 +14,6 @@ interface Col {
   bgTint: string;
   borderColor: string;
   accentColor: string;
-  count?: number;
 }
 
 const COLUMNS: Col[] = [
@@ -33,15 +33,19 @@ function Modal({ title, onClose, children, wide }: {
     <div style={{
       position: 'fixed', inset: 0, zIndex: 50,
       background: 'rgba(0,0,0,0.75)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
       backdropFilter: 'blur(4px)',
-    }}>
-      <div style={{
-        background: '#111113', border: '1px solid rgba(255,255,255,0.08)',
-        borderRadius: 16, width: '100%', maxWidth: wide ? 520 : 380,
-        boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
-        maxHeight: '90vh', display: 'flex', flexDirection: 'column',
-      }}>
+    }}
+      className="lg:items-center lg:p-4"
+    >
+      <div
+        className="lg:rounded-2xl"
+        style={{
+          background: '#111113', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '16px 16px 0 0', width: '100%', maxWidth: wide ? 520 : 400,
+          boxShadow: '0 -8px 40px rgba(0,0,0,0.6)',
+          maxHeight: '92vh', display: 'flex', flexDirection: 'column',
+        }}>
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
@@ -63,8 +67,8 @@ function inputSt(focused = false): React.CSSProperties {
   return {
     width: '100%', background: '#18181b',
     border: `1px solid ${focused ? '#7c3aed' : 'rgba(255,255,255,0.08)'}`,
-    borderRadius: 8, padding: '7px 10px',
-    fontSize: '12px', color: '#fafafa', outline: 'none',
+    borderRadius: 8, padding: '8px 10px',
+    fontSize: '13px', color: '#fafafa', outline: 'none',
     transition: 'border-color 0.15s',
   };
 }
@@ -73,16 +77,122 @@ function labelSt(): React.CSSProperties {
   return { display: 'block', fontSize: '11px', fontWeight: 500, color: '#71717a', marginBottom: 5 };
 }
 
+function KanbanCardItem({
+  card, col, onDelete, onSale, onMarkPaid, markingPaidId,
+}: {
+  card: KanbanCard;
+  col: Col;
+  onDelete: (id: number) => void;
+  onSale: (card: KanbanCard) => void;
+  onMarkPaid: (card: KanbanCard) => void;
+  markingPaidId: number | null;
+}) {
+  return (
+    <div style={{
+      background: '#18181b',
+      border: '1px solid rgba(255,255,255,0.07)',
+      borderRadius: 10,
+      overflow: 'hidden',
+    }}>
+      <div style={{ height: 3, background: `linear-gradient(90deg, ${col.dotColor}50, ${col.dotColor}20)` }} />
+      <div style={{ padding: '10px 10px 8px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 4, marginBottom: 6 }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: '12px', fontWeight: 600, color: '#fafafa', letterSpacing: '-0.01em', lineHeight: 1.3, wordBreak: 'break-word' }}>
+              {card.customer_name ?? card.content}
+            </p>
+            {card.customer_phone && (
+              <a
+                href={`https://wa.me/55${card.customer_phone.replace(/\D/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: '11px', color: '#34d399', textDecoration: 'none', display: 'block', marginTop: 2 }}
+                onClick={e => e.stopPropagation()}
+              >
+                {card.customer_phone}
+              </a>
+            )}
+          </div>
+          <button
+            onClick={() => onDelete(card.id)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3f3f46', display: 'flex', padding: 2, transition: 'color 0.15s', flexShrink: 0 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#3f3f46'; }}
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {card.customer_id && (
+          <div style={{ display: 'flex', gap: 4 }}>
+            {(col.id === 'novo' || col.id === 'contato' || col.id === 'pedido') && (
+              <button
+                onClick={() => onSale(card)}
+                style={{
+                  flex: 1, background: 'rgba(124,58,237,0.12)', color: '#a78bfa',
+                  border: '1px solid rgba(124,58,237,0.2)',
+                  borderRadius: 6, padding: '5px 0',
+                  fontSize: '11px', fontWeight: 500, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(124,58,237,0.2)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(124,58,237,0.12)'; }}
+              >
+                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Pedido
+              </button>
+            )}
+            {col.id === 'pedido' && (
+              <button
+                onClick={() => onMarkPaid(card)}
+                disabled={markingPaidId === card.id}
+                style={{
+                  flex: 1, background: 'rgba(52,211,153,0.1)', color: '#34d399',
+                  border: '1px solid rgba(52,211,153,0.2)',
+                  borderRadius: 6, padding: '5px 0',
+                  fontSize: '11px', fontWeight: 500,
+                  cursor: markingPaidId === card.id ? 'not-allowed' : 'pointer',
+                  opacity: markingPaidId === card.id ? 0.5 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => { if (markingPaidId !== card.id) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.18)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.1)'; }}
+              >
+                <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                Pago
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Kanban() {
+  const toast = useToast();
   const [isBrowser, setIsBrowser] = useState(false);
   const [cards, setCards] = useState<KanbanCard[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Mobile column tab
+  const [activeCol, setActiveCol] = useState<KanbanStatus>('novo');
+
+  // Inline add form
   const [addingToCol, setAddingToCol] = useState<KanbanStatus | null>(null);
   const [newCardText, setNewCardText] = useState('');
   const [addSubmitting, setAddSubmitting] = useState(false);
 
+  // Sale modal
   const [saleCard, setSaleCard] = useState<KanbanCard | null>(null);
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [saleNotes, setSaleNotes] = useState('');
@@ -97,20 +207,23 @@ export default function Kanban() {
     try {
       const [c, p] = await Promise.all([getKanbanCards(), getProducts()]);
       setCards(c); setProducts(p);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  }, []);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao carregar pipeline');
+    } finally {
+      setLoading(false);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const colCards = (id: KanbanStatus) => cards.filter((c) => c.status === id);
+  const colCards = (id: KanbanStatus) => cards.filter(c => c.status === id);
 
   async function onDragEnd(result: DropResult) {
     const { destination, source, draggableId } = result;
     if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) return;
     const cardId = parseInt(draggableId, 10);
     const newStatus = destination.droppableId as KanbanStatus;
-    setCards((prev) => prev.map((c) => c.id === cardId ? { ...c, status: newStatus } : c));
+    setCards(prev => prev.map(c => c.id === cardId ? { ...c, status: newStatus } : c));
     await moveKanbanCard(cardId, newStatus).catch(() => loadData());
   }
 
@@ -120,14 +233,17 @@ export default function Kanban() {
     setAddSubmitting(true);
     try {
       const card = await createKanbanCard({ content: newCardText.trim(), status: addingToCol });
-      setCards((prev) => [...prev, card]);
+      setCards(prev => [...prev, card]);
       setNewCardText(''); setAddingToCol(null);
-    } catch (e) { console.error(e); }
-    finally { setAddSubmitting(false); }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao adicionar card');
+    } finally {
+      setAddSubmitting(false);
+    }
   }
 
   async function handleDeleteCard(id: number) {
-    setCards((prev) => prev.filter((c) => c.id !== id));
+    setCards(prev => prev.filter(c => c.id !== id));
     await deleteKanbanCard(id).catch(() => loadData());
   }
 
@@ -138,11 +254,11 @@ export default function Kanban() {
   }
 
   function updateSaleItem(i: number, field: keyof SaleItem, value: number) {
-    setSaleItems((prev) => {
+    setSaleItems(prev => {
       const next = [...prev];
       next[i] = { ...next[i], [field]: value };
       if (field === 'product_id') {
-        const p = products.find((p) => p.id === value);
+        const p = products.find(p => p.id === value);
         if (p) next[i].unit_price = p.normal_price;
       }
       return next;
@@ -158,28 +274,36 @@ export default function Kanban() {
         customer_id: saleCard.customer_id,
         status: 'pending',
         notes: saleNotes || undefined,
-        items: saleItems.filter((i) => i.product_id > 0),
+        items: saleItems.filter(i => i.product_id > 0),
       });
-      setCards((prev) => prev.map((c) => c.id === saleCard.id ? { ...c, status: 'pedido' } : c));
+      setCards(prev => prev.map(c => c.id === saleCard.id ? { ...c, status: 'pedido' } : c));
+      toast.success('Pedido criado');
       setSaleCard(null);
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Erro ao criar venda');
-    } finally { setSaleSubmitting(false); }
+      toast.error(e instanceof Error ? e.message : 'Erro ao criar pedido');
+    } finally {
+      setSaleSubmitting(false);
+    }
   }
 
   async function handleMarkPaid(card: KanbanCard) {
     if (!card.customer_id) return;
     setMarkingPaidId(card.id);
     try {
-      const res = await fetch(`/api/orders?limit=100`);
-      const orders: Array<{ id: number; customer_id: number; status: string }> = await res.json();
-      const pending = orders.find((o) => o.customer_id === card.customer_id && o.status === 'pending');
-      if (pending) await updateOrder(pending.id, { status: 'paid' });
-      setCards((prev) => prev.map((c) => c.id === card.id ? { ...c, status: 'pago' } : c));
+      // Fetch only the most recent pending order for this customer
+      const orders = await getOrders(0, 1, { customer_id: card.customer_id, status: 'pending' });
+      if (orders.length > 0) {
+        await updateOrder(orders[0].id, { status: 'paid' });
+        // Server auto-moves kanban card via STATUS_TO_KANBAN
+      }
+      setCards(prev => prev.map(c => c.id === card.id ? { ...c, status: 'pago' } : c));
+      toast.success('Pedido marcado como pago');
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Erro');
+      toast.error(e instanceof Error ? e.message : 'Erro ao marcar como pago');
       loadData();
-    } finally { setMarkingPaidId(null); }
+    } finally {
+      setMarkingPaidId(null);
+    }
   }
 
   const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -189,243 +313,343 @@ export default function Kanban() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontSize: '22px', fontWeight: 700, letterSpacing: '-0.03em', color: '#fafafa', marginBottom: 4 }}>
           Pipeline de Vendas
         </h1>
         <p style={{ fontSize: '13px', color: '#52525b' }}>
-          {cards.length} leads · Lead → Contato → Pedido →{' '}
-          <span style={{ color: '#a78bfa', fontWeight: 500 }}>Pago</span> → Entregue
+          {cards.length} leads · Lead → Contato → Pedido → <span style={{ color: '#a78bfa', fontWeight: 500 }}>Pago</span> → Entregue
         </p>
       </div>
 
-      {loading ? (
-        <div style={{ display: 'flex', gap: 10, flex: 1 }}>
-          {COLUMNS.map((col) => (
-            <div key={col.id} style={{
-              width: 228, flexShrink: 0, borderRadius: 12,
-              background: col.bgTint, border: `1px solid ${col.borderColor}`,
-              minHeight: 380,
-            }}>
-              <div style={{ padding: '12px 12px 8px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: col.dotColor, flexShrink: 0 }} />
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: col.accentColor }}>{col.title}</span>
-                </div>
-              </div>
-              <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {[1, 2].map((i) => (
-                  <div key={i} className="skeleton rounded-lg" style={{ height: 60 }} />
-                ))}
-              </div>
-            </div>
-          ))}
+      {/* ── Mobile: tab column selector ──────────────────────────────────── */}
+      <div className="block lg:hidden" style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+          {COLUMNS.map(col => {
+            const isActive = activeCol === col.id;
+            return (
+              <button
+                key={col.id}
+                onClick={() => setActiveCol(col.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 20, fontSize: '12px', fontWeight: isActive ? 600 : 400,
+                  background: isActive ? col.bgTint : 'transparent',
+                  color: isActive ? col.accentColor : '#52525b',
+                  border: `1px solid ${isActive ? col.borderColor : 'rgba(255,255,255,0.06)'}`,
+                  cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                  transition: 'all 0.15s',
+                }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: col.dotColor, flexShrink: 0 }} />
+                {col.title}
+                <span style={{
+                  fontSize: '10px', fontWeight: 600, color: '#3f3f46',
+                  background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: '1px 6px',
+                }}>
+                  {colCards(col.id).length}
+                </span>
+              </button>
+            );
+          })}
         </div>
+      </div>
+
+      {loading ? (
+        <>
+          {/* Mobile loading skeleton */}
+          <div className="block lg:hidden">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="skeleton rounded-xl" style={{ height: 76, marginBottom: 8 }} />
+            ))}
+          </div>
+          {/* Desktop loading skeleton */}
+          <div className="hidden lg:flex gap-2.5 flex-1">
+            {COLUMNS.map(col => (
+              <div key={col.id} style={{
+                width: 228, flexShrink: 0, borderRadius: 12,
+                background: col.bgTint, border: `1px solid ${col.borderColor}`,
+                minHeight: 380, padding: 10, display: 'flex', flexDirection: 'column', gap: 6,
+              }}>
+                <div style={{ height: 20, marginBottom: 6 }}>
+                  <div className="skeleton rounded" style={{ height: 11, width: 80 }} />
+                </div>
+                {[1, 2].map(i => <div key={i} className="skeleton rounded-lg" style={{ height: 60 }} />)}
+              </div>
+            ))}
+          </div>
+        </>
       ) : (
-        <DragDropContext onDragEnd={onDragEnd}>
-          <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 16, flex: 1, alignItems: 'flex-start' }}>
-            {COLUMNS.map((col) => {
-              const cards_ = colCards(col.id);
+        <>
+          {/* ── Mobile: single active column ──────────────────────────── */}
+          <div className="block lg:hidden">
+            {(() => {
+              const col = COLUMNS.find(c => c.id === activeCol)!;
+              const colCardsActive = colCards(activeCol);
               return (
-                <div
-                  key={col.id}
-                  style={{
-                    width: 228, flexShrink: 0, borderRadius: 12,
-                    background: col.bgTint,
-                    border: `1px solid ${col.borderColor}`,
-                    minHeight: 380,
-                    display: 'flex', flexDirection: 'column',
-                  }}
-                >
-                  {/* Column header */}
+                <div style={{
+                  background: col.bgTint,
+                  border: `1px solid ${col.borderColor}`,
+                  borderRadius: 12, overflow: 'hidden',
+                }}>
                   <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '10px 12px 8px',
+                    padding: '10px 14px 8px',
                     borderBottom: '1px solid rgba(255,255,255,0.04)',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: col.dotColor, flexShrink: 0 }} />
-                      <span style={{ fontSize: '11px', fontWeight: 600, color: col.accentColor }}>{col.title}</span>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: col.dotColor }} />
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: col.accentColor }}>{col.title}</span>
                       <span style={{
                         fontSize: '10px', fontWeight: 600, color: '#3f3f46',
-                        background: 'rgba(255,255,255,0.06)', borderRadius: 20,
-                        padding: '1px 6px', minWidth: 18, textAlign: 'center',
-                      }}>
-                        {cards_.length}
-                      </span>
+                        background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: '1px 6px',
+                      }}>{colCardsActive.length}</span>
                     </div>
                     <button
-                      onClick={() => { setAddingToCol(col.id); setNewCardText(''); }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3f3f46', display: 'flex', padding: 2, transition: 'color 0.15s' }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#a1a1aa'; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#3f3f46'; }}
+                      onClick={() => { setAddingToCol(activeCol); setNewCardText(''); }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#71717a', display: 'flex', padding: 4 }}
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                       </svg>
                     </button>
                   </div>
 
-                  {/* Add card inline form */}
-                  {addingToCol === col.id && (
-                    <form onSubmit={handleAddCard} style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <input
-                        autoFocus type="text" value={newCardText}
-                        onChange={(e) => setNewCardText(e.target.value)}
+                  {addingToCol === activeCol && (
+                    <form onSubmit={handleAddCard} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <input autoFocus type="text" value={newCardText}
+                        onChange={e => setNewCardText(e.target.value)}
                         placeholder="Nome do lead..."
-                        style={{ ...inputSt(true), marginBottom: 6 }}
+                        style={{ ...inputSt(true), marginBottom: 8, padding: '10px 12px', fontSize: '14px' }}
                       />
-                      <div style={{ display: 'flex', gap: 6 }}>
+                      <div style={{ display: 'flex', gap: 8 }}>
                         <button type="submit" disabled={addSubmitting || !newCardText.trim()}
                           style={{
                             flex: 1, background: '#7c3aed', color: '#fff', border: 'none',
-                            borderRadius: 7, padding: '5px 0', fontSize: '11px', fontWeight: 500,
+                            borderRadius: 8, padding: '9px 0', fontSize: '13px', fontWeight: 500,
                             cursor: addSubmitting || !newCardText.trim() ? 'not-allowed' : 'pointer',
                             opacity: addSubmitting || !newCardText.trim() ? 0.5 : 1,
-                          }}>
-                          Adicionar
-                        </button>
+                          }}>Adicionar</button>
                         <button type="button" onClick={() => setAddingToCol(null)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#52525b', fontSize: '11px', padding: '5px 8px' }}>
+                          style={{ background: 'none', border: '1px solid rgba(255,255,255,0.08)', cursor: 'pointer', color: '#71717a', fontSize: '13px', padding: '9px 16px', borderRadius: 8 }}>
                           ✕
                         </button>
                       </div>
                     </form>
                   )}
 
-                  <Droppable droppableId={col.id}>
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        style={{
-                          flex: 1, minHeight: 60, padding: '8px 8px 8px',
-                          background: snapshot.isDraggingOver ? 'rgba(255,255,255,0.03)' : 'transparent',
-                          transition: 'background 0.15s',
-                          borderRadius: '0 0 12px 12px',
-                        }}
-                      >
-                        {cards_.map((card, index) => (
-                          <Draggable key={card.id} draggableId={String(card.id)} index={index}>
-                            {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                style={{
-                                  ...provided.draggableProps.style,
-                                  marginBottom: 6,
-                                }}
-                              >
-                                {/* Card */}
-                                <div style={{
-                                  background: snapshot.isDragging ? '#1c1c1f' : '#18181b',
-                                  border: `1px solid ${snapshot.isDragging ? 'rgba(124,58,237,0.4)' : 'rgba(255,255,255,0.07)'}`,
-                                  borderRadius: 10,
-                                  overflow: 'hidden',
-                                  boxShadow: snapshot.isDragging ? '0 12px 32px rgba(0,0,0,0.5)' : 'none',
-                                  transform: snapshot.isDragging ? 'rotate(1.5deg)' : 'none',
-                                  transition: 'border-color 0.15s, box-shadow 0.15s',
-                                }}>
-                                  {/* Drag handle strip */}
-                                  <div
-                                    {...provided.dragHandleProps}
-                                    style={{
-                                      height: 3,
-                                      background: `linear-gradient(90deg, ${col.dotColor}50, ${col.dotColor}20)`,
-                                      cursor: 'grab',
-                                    }}
-                                  />
-                                  <div style={{ padding: '10px 10px 8px' }}>
-                                    {/* Card header */}
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 4, marginBottom: 6 }}>
-                                      <div style={{ minWidth: 0 }}>
-                                        <p style={{ fontSize: '12px', fontWeight: 600, color: '#fafafa', letterSpacing: '-0.01em', lineHeight: 1.3, wordBreak: 'break-word' }}>
-                                          {card.customer_name ?? card.content}
-                                        </p>
-                                        {card.customer_phone && (
-                                          <p style={{ fontSize: '11px', color: '#52525b', marginTop: 2 }}>{card.customer_phone}</p>
-                                        )}
-                                      </div>
-                                      <button
-                                        onClick={() => handleDeleteCard(card.id)}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3f3f46', display: 'flex', padding: 2, transition: 'color 0.15s', flexShrink: 0 }}
-                                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; }}
-                                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#3f3f46'; }}
-                                      >
-                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                      </button>
-                                    </div>
-
-                                    {/* Action buttons */}
-                                    {card.customer_id && products.length > 0 && (
-                                      <div style={{ display: 'flex', gap: 4 }}>
-                                        {(col.id === 'novo' || col.id === 'contato' || col.id === 'pedido') && (
-                                          <button
-                                            onClick={() => openSale(card)}
-                                            style={{
-                                              flex: 1, background: 'rgba(124,58,237,0.12)', color: '#a78bfa',
-                                              border: '1px solid rgba(124,58,237,0.2)',
-                                              borderRadius: 6, padding: '4px 0',
-                                              fontSize: '11px', fontWeight: 500, cursor: 'pointer',
-                                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
-                                              transition: 'background 0.15s',
-                                            }}
-                                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(124,58,237,0.2)'; }}
-                                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(124,58,237,0.12)'; }}
-                                          >
-                                            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                                            </svg>
-                                            Pedido
-                                          </button>
-                                        )}
-                                        {col.id === 'pedido' && (
-                                          <button
-                                            onClick={() => handleMarkPaid(card)}
-                                            disabled={markingPaidId === card.id}
-                                            style={{
-                                              flex: 1, background: 'rgba(52,211,153,0.1)', color: '#34d399',
-                                              border: '1px solid rgba(52,211,153,0.2)',
-                                              borderRadius: 6, padding: '4px 0',
-                                              fontSize: '11px', fontWeight: 500,
-                                              cursor: markingPaidId === card.id ? 'not-allowed' : 'pointer',
-                                              opacity: markingPaidId === card.id ? 0.5 : 1,
-                                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
-                                              transition: 'background 0.15s',
-                                            }}
-                                            onMouseEnter={(e) => { if (markingPaidId !== card.id) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.18)'; }}
-                                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.1)'; }}
-                                          >
-                                            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            Pago
-                                          </button>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                        {provided.placeholder}
-                        {cards_.length === 0 && !addingToCol && (
-                          <p style={{ fontSize: '11px', color: '#3f3f46', textAlign: 'center', padding: '20px 0' }}>
-                            Arraste aqui
-                          </p>
-                        )}
-                      </div>
+                  <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {colCardsActive.length === 0 && (
+                      <p style={{ fontSize: '12px', color: '#3f3f46', textAlign: 'center', padding: '24px 0' }}>
+                        Nenhum lead nesta coluna
+                      </p>
                     )}
-                  </Droppable>
+                    {colCardsActive.map(card => (
+                      <KanbanCardItem
+                        key={card.id}
+                        card={card}
+                        col={col}
+                        onDelete={handleDeleteCard}
+                        onSale={openSale}
+                        onMarkPaid={handleMarkPaid}
+                        markingPaidId={markingPaidId}
+                      />
+                    ))}
+                  </div>
                 </div>
               );
-            })}
+            })()}
           </div>
-        </DragDropContext>
+
+          {/* ── Desktop: drag-drop board ───────────────────────────────── */}
+          <DragDropContext onDragEnd={onDragEnd}>
+            <div className="hidden lg:flex" style={{ gap: 10, overflowX: 'auto', paddingBottom: 16, flex: 1, alignItems: 'flex-start' }}>
+              {COLUMNS.map(col => {
+                const cards_ = colCards(col.id);
+                return (
+                  <div key={col.id} style={{
+                    width: 228, flexShrink: 0, borderRadius: 12,
+                    background: col.bgTint, border: `1px solid ${col.borderColor}`,
+                    minHeight: 380, display: 'flex', flexDirection: 'column',
+                  }}>
+                    {/* Column header */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '10px 12px 8px',
+                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: col.dotColor, flexShrink: 0 }} />
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: col.accentColor }}>{col.title}</span>
+                        <span style={{
+                          fontSize: '10px', fontWeight: 600, color: '#3f3f46',
+                          background: 'rgba(255,255,255,0.06)', borderRadius: 20,
+                          padding: '1px 6px', minWidth: 18, textAlign: 'center',
+                        }}>{cards_.length}</span>
+                      </div>
+                      <button
+                        onClick={() => { setAddingToCol(col.id); setNewCardText(''); }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3f3f46', display: 'flex', padding: 2, transition: 'color 0.15s' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#a1a1aa'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#3f3f46'; }}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* Inline add form */}
+                    {addingToCol === col.id && (
+                      <form onSubmit={handleAddCard} style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <input autoFocus type="text" value={newCardText}
+                          onChange={e => setNewCardText(e.target.value)}
+                          placeholder="Nome do lead..."
+                          style={{ ...inputSt(true), marginBottom: 6 }}
+                        />
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button type="submit" disabled={addSubmitting || !newCardText.trim()}
+                            style={{
+                              flex: 1, background: '#7c3aed', color: '#fff', border: 'none',
+                              borderRadius: 7, padding: '5px 0', fontSize: '11px', fontWeight: 500,
+                              cursor: addSubmitting || !newCardText.trim() ? 'not-allowed' : 'pointer',
+                              opacity: addSubmitting || !newCardText.trim() ? 0.5 : 1,
+                            }}>Adicionar</button>
+                          <button type="button" onClick={() => setAddingToCol(null)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#52525b', fontSize: '11px', padding: '5px 8px' }}>
+                            ✕
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    <Droppable droppableId={col.id}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                          style={{
+                            flex: 1, minHeight: 60, padding: '8px 8px 8px',
+                            background: snapshot.isDraggingOver ? 'rgba(255,255,255,0.03)' : 'transparent',
+                            transition: 'background 0.15s',
+                            borderRadius: '0 0 12px 12px',
+                          }}
+                        >
+                          {cards_.map((card, index) => (
+                            <Draggable key={card.id} draggableId={String(card.id)} index={index}>
+                              {(provided, snapshot) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  style={{ ...provided.draggableProps.style, marginBottom: 6 }}
+                                >
+                                  <div style={{
+                                    background: snapshot.isDragging ? '#1c1c1f' : '#18181b',
+                                    border: `1px solid ${snapshot.isDragging ? 'rgba(124,58,237,0.4)' : 'rgba(255,255,255,0.07)'}`,
+                                    borderRadius: 10,
+                                    overflow: 'hidden',
+                                    boxShadow: snapshot.isDragging ? '0 12px 32px rgba(0,0,0,0.5)' : 'none',
+                                    transform: snapshot.isDragging ? 'rotate(1.5deg)' : 'none',
+                                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                                  }}>
+                                    <div {...provided.dragHandleProps}
+                                      style={{ height: 3, background: `linear-gradient(90deg, ${col.dotColor}50, ${col.dotColor}20)`, cursor: 'grab' }}
+                                    />
+                                    <div style={{ padding: '10px 10px 8px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 4, marginBottom: 6 }}>
+                                        <div style={{ minWidth: 0 }}>
+                                          <p style={{ fontSize: '12px', fontWeight: 600, color: '#fafafa', letterSpacing: '-0.01em', lineHeight: 1.3, wordBreak: 'break-word' }}>
+                                            {card.customer_name ?? card.content}
+                                          </p>
+                                          {card.customer_phone && (
+                                            <a
+                                              href={`https://wa.me/55${card.customer_phone.replace(/\D/g, '')}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              style={{ fontSize: '11px', color: '#34d399', textDecoration: 'none', display: 'block', marginTop: 2 }}
+                                              onClick={e => e.stopPropagation()}
+                                            >
+                                              {card.customer_phone}
+                                            </a>
+                                          )}
+                                        </div>
+                                        <button
+                                          onClick={() => handleDeleteCard(card.id)}
+                                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3f3f46', display: 'flex', padding: 2, transition: 'color 0.15s', flexShrink: 0 }}
+                                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; }}
+                                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#3f3f46'; }}
+                                        >
+                                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                          </svg>
+                                        </button>
+                                      </div>
+
+                                      {card.customer_id && products.length > 0 && (
+                                        <div style={{ display: 'flex', gap: 4 }}>
+                                          {(col.id === 'novo' || col.id === 'contato' || col.id === 'pedido') && (
+                                            <button onClick={() => openSale(card)}
+                                              style={{
+                                                flex: 1, background: 'rgba(124,58,237,0.12)', color: '#a78bfa',
+                                                border: '1px solid rgba(124,58,237,0.2)',
+                                                borderRadius: 6, padding: '4px 0',
+                                                fontSize: '11px', fontWeight: 500, cursor: 'pointer',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                                                transition: 'background 0.15s',
+                                              }}
+                                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(124,58,237,0.2)'; }}
+                                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(124,58,237,0.12)'; }}
+                                            >
+                                              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                              </svg>
+                                              Pedido
+                                            </button>
+                                          )}
+                                          {col.id === 'pedido' && (
+                                            <button onClick={() => handleMarkPaid(card)} disabled={markingPaidId === card.id}
+                                              style={{
+                                                flex: 1, background: 'rgba(52,211,153,0.1)', color: '#34d399',
+                                                border: '1px solid rgba(52,211,153,0.2)',
+                                                borderRadius: 6, padding: '4px 0',
+                                                fontSize: '11px', fontWeight: 500,
+                                                cursor: markingPaidId === card.id ? 'not-allowed' : 'pointer',
+                                                opacity: markingPaidId === card.id ? 0.5 : 1,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+                                                transition: 'background 0.15s',
+                                              }}
+                                              onMouseEnter={e => { if (markingPaidId !== card.id) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.18)'; }}
+                                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.1)'; }}
+                                            >
+                                              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                              </svg>
+                                              Pago
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </Draggable>
+                          ))}
+                          {provided.placeholder}
+                          {cards_.length === 0 && !addingToCol && (
+                            <p style={{ fontSize: '11px', color: '#3f3f46', textAlign: 'center', padding: '20px 0' }}>
+                              Arraste aqui
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </Droppable>
+                  </div>
+                );
+              })}
+            </div>
+          </DragDropContext>
+        </>
       )}
 
       {/* Sale Modal */}
@@ -436,34 +660,34 @@ export default function Kanban() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <label style={labelSt()}>Produtos</label>
                 <button type="button"
-                  onClick={() => setSaleItems((p) => [...p, { product_id: products[0]?.id ?? 0, quantity: 1, unit_price: products[0]?.normal_price ?? 0 }])}
+                  onClick={() => setSaleItems(p => [...p, { product_id: products[0]?.id ?? 0, quantity: 1, unit_price: products[0]?.normal_price ?? 0 }])}
                   style={{ fontSize: '11px', color: '#a78bfa', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
                   + item
                 </button>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {saleItems.map((item, i) => {
-                  const p = products.find((p) => p.id === item.product_id);
+                  const p = products.find(p => p.id === item.product_id);
                   return (
                     <div key={i} style={{
                       display: 'flex', alignItems: 'center', gap: 8,
-                      background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '7px 10px',
+                      background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 10px',
                       border: '1px solid rgba(255,255,255,0.06)',
                     }}>
                       {p?.photo_url && <img src={p.photo_url} alt={p.name} style={{ width: 30, height: 30, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />}
                       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '5fr 2fr 3fr 1fr', gap: 5, alignItems: 'center' }}>
-                        <select value={item.product_id} onChange={(e) => updateSaleItem(i, 'product_id', Number(e.target.value))}
+                        <select value={item.product_id} onChange={e => updateSaleItem(i, 'product_id', Number(e.target.value))}
                           style={{ ...inputSt(), background: '#18181b' }}>
-                          {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                         <input type="number" min={1} value={item.quantity}
-                          onChange={(e) => updateSaleItem(i, 'quantity', Number(e.target.value))}
+                          onChange={e => updateSaleItem(i, 'quantity', Number(e.target.value))}
                           style={{ ...inputSt(), textAlign: 'center' }} />
                         <input type="number" step="0.01" min={0} value={item.unit_price}
-                          onChange={(e) => updateSaleItem(i, 'unit_price', Number(e.target.value))}
+                          onChange={e => updateSaleItem(i, 'unit_price', Number(e.target.value))}
                           style={inputSt()} />
                         <button type="button" disabled={saleItems.length === 1}
-                          onClick={() => setSaleItems((p) => p.filter((_, idx) => idx !== i))}
+                          onClick={() => setSaleItems(p => p.filter((_, idx) => idx !== i))}
                           style={{ background: 'none', border: 'none', cursor: saleItems.length === 1 ? 'default' : 'pointer', color: '#52525b', display: 'flex', justifyContent: 'center', opacity: saleItems.length === 1 ? 0.2 : 1 }}>
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -487,7 +711,7 @@ export default function Kanban() {
 
             <div style={{ marginBottom: 14 }}>
               <label style={labelSt()}>Observações</label>
-              <textarea value={saleNotes} onChange={(e) => setSaleNotes(e.target.value)} rows={2}
+              <textarea value={saleNotes} onChange={e => setSaleNotes(e.target.value)} rows={2}
                 placeholder="Tamanho, cor, prazo..."
                 style={{ ...inputSt(), resize: 'none' }} />
             </div>
@@ -498,17 +722,16 @@ export default function Kanban() {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button type="button" onClick={() => setSaleCard(null)}
-                style={{ padding: '7px 12px', fontSize: '12px', color: '#71717a', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, cursor: 'pointer' }}>
+                style={{ padding: '9px 14px', fontSize: '13px', color: '#71717a', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, cursor: 'pointer' }}>
                 Cancelar
               </button>
-              <button type="submit" disabled={saleSubmitting || !saleCard.customer_id || saleItems.every((i) => !i.product_id)}
+              <button type="submit" disabled={saleSubmitting || !saleCard.customer_id || saleItems.every(i => !i.product_id)}
                 style={{
-                  padding: '7px 14px', fontSize: '12px', fontWeight: 500, color: '#fff',
+                  padding: '9px 16px', fontSize: '13px', fontWeight: 500, color: '#fff',
                   background: saleSubmitting ? '#5b21b6' : '#7c3aed',
                   border: 'none', borderRadius: 8,
                   cursor: saleSubmitting ? 'not-allowed' : 'pointer',
                   opacity: saleSubmitting ? 0.7 : 1,
-                  letterSpacing: '-0.01em',
                 }}>
                 {saleSubmitting ? 'Criando...' : 'Confirmar Pedido'}
               </button>

@@ -1,11 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../../lib/supabase';
+import { withAuth } from '../../../lib/withAuth';
 
 const BUCKET = 'product-images';
-const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default withAuth(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ detail: 'Method not allowed' });
 
   const { filename, data: base64Data, type } = req.body as {
@@ -28,10 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ detail: 'Image must be smaller than 5 MB' });
   }
 
-  // Create bucket if it doesn't exist
-  await supabase.storage.createBucket(BUCKET, { public: true }).catch(() => {
-    // Bucket already exists — that's fine
-  });
+  await supabase.storage.createBucket(BUCKET, { public: true }).catch(() => {});
 
   const ext = filename.split('.').pop() ?? 'jpg';
   const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -47,4 +45,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { data: { publicUrl } } = supabase.storage.from(BUCKET).getPublicUrl(uniqueName);
 
   return res.status(200).json({ url: publicUrl });
-}
+});

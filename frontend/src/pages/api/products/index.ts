@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../../lib/supabase';
+import { withAuth } from '../../../lib/withAuth';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default withAuth(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
     const skip = Number(req.query.skip ?? 0);
     const limit = Math.min(Number(req.query.limit ?? 100), 200);
@@ -24,4 +25,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   return res.status(405).json({ detail: 'Method not allowed' });
-}
+});

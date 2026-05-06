@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getOrders, createOrder, updateOrder, deleteOrder, getCustomers, getProducts } from '../../utils/api';
+import { useToast } from '../../contexts/ToastContext';
 import type { Order, OrderCreate, Customer, Product, OrderStatus } from '../../types';
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -35,15 +36,19 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose: () 
     <div style={{
       position: 'fixed', inset: 0, zIndex: 50,
       background: 'rgba(0,0,0,0.75)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
       backdropFilter: 'blur(4px)',
-    }}>
-      <div style={{
-        background: '#111113', border: '1px solid rgba(255,255,255,0.08)',
-        borderRadius: 16, width: '100%', maxWidth: wide ? 600 : 440,
-        boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
-        maxHeight: '90vh', display: 'flex', flexDirection: 'column',
-      }}>
+    }}
+      className="lg:items-center lg:p-4"
+    >
+      <div
+        className="lg:rounded-2xl"
+        style={{
+          background: '#111113', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '16px 16px 0 0', width: '100%', maxWidth: wide ? 620 : 460,
+          boxShadow: '0 -8px 40px rgba(0,0,0,0.6)',
+          maxHeight: '92vh', display: 'flex', flexDirection: 'column',
+        }}>
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
@@ -65,8 +70,8 @@ function inputSt(focused = false): React.CSSProperties {
   return {
     width: '100%', background: '#18181b',
     border: `1px solid ${focused ? '#7c3aed' : 'rgba(255,255,255,0.08)'}`,
-    borderRadius: 8, padding: '8px 12px',
-    fontSize: '13px', color: '#fafafa', outline: 'none',
+    borderRadius: 8, padding: '10px 12px',
+    fontSize: '14px', color: '#fafafa', outline: 'none',
     transition: 'border-color 0.15s',
   };
 }
@@ -85,7 +90,18 @@ const SkeletonRow = () => (
   </tr>
 );
 
+const SkeletonCard = () => (
+  <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+      <div className="skeleton rounded" style={{ height: 14, width: 140 }} />
+      <div className="skeleton rounded" style={{ height: 14, width: 80 }} />
+    </div>
+    <div className="skeleton rounded" style={{ height: 11, width: 100 }} />
+  </div>
+);
+
 export default function Orders() {
+  const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -119,9 +135,10 @@ export default function Orders() {
     setMarkingPaidId(id);
     try {
       await updateOrder(id, { status: 'paid' });
-      setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status: 'paid' } : o));
+      setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'paid' } : o));
+      toast.success('Pedido marcado como pago');
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Erro');
+      toast.error(e instanceof Error ? e.message : 'Erro');
     } finally {
       setMarkingPaidId(null);
     }
@@ -130,9 +147,10 @@ export default function Orders() {
   async function markDelivered(id: number) {
     try {
       await updateOrder(id, { status: 'delivered' });
-      setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status: 'delivered' } : o));
+      setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'delivered' } : o));
+      toast.success('Pedido marcado como entregue');
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Erro');
+      toast.error(e instanceof Error ? e.message : 'Erro');
     }
   }
 
@@ -143,11 +161,11 @@ export default function Orders() {
   }
 
   function updateItem(key: number, field: string, value: number) {
-    setItems((prev) => prev.map((i) => {
+    setItems(prev => prev.map(i => {
       if (i._key !== key) return i;
       const next = { ...i, [field]: value };
       if (field === 'product_id') {
-        const p = products.find((p) => p.id === value);
+        const p = products.find(p => p.id === value);
         if (p) next.unit_price = p.normal_price;
       }
       return next;
@@ -167,73 +185,76 @@ export default function Orders() {
         customer_id: customerId as number,
         status: 'pending',
         notes: notes || undefined,
-        items: items.filter((i) => i.product_id > 0).map(({ _key: _, ...rest }) => rest),
+        items: items.filter(i => i.product_id > 0).map(({ _key: _, ...rest }) => rest),
       };
       await createOrder(payload);
+      toast.success('Venda criada');
       setIsCreateOpen(false);
       loadOrders();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Erro ao criar pedido');
+      toast.error(e instanceof Error ? e.message : 'Erro ao criar venda');
     } finally {
       setSubmitting(false);
     }
   }
 
   async function handleDelete(id: number) {
-    try { await deleteOrder(id); setDeleteConfirmId(null); loadOrders(); }
-    catch (e) { alert(e instanceof Error ? e.message : 'Erro'); }
+    try {
+      await deleteOrder(id);
+      toast.success('Venda excluída');
+      setDeleteConfirmId(null);
+      loadOrders();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro');
+    }
   }
 
-  const pendingTotal = orders.filter((o) => o.status === 'pending').reduce((s, o) => s + o.total, 0);
-  const paidTotal = orders.filter((o) => o.status === 'paid').reduce((s, o) => s + o.total, 0);
-  const pendingCount = orders.filter((o) => o.status === 'pending').length;
+  const pendingTotal   = orders.filter(o => o.status === 'pending').reduce((s, o) => s + o.total, 0);
+  const paidTotal      = orders.filter(o => o.status === 'paid').reduce((s, o) => s + o.total, 0);
+  const pendingCount   = orders.filter(o => o.status === 'pending').length;
 
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <h1 style={{ fontSize: '22px', fontWeight: 700, letterSpacing: '-0.03em', color: '#fafafa', marginBottom: 3 }}>
-            Vendas
-          </h1>
-          <p style={{ fontSize: '13px', color: '#52525b' }}>
-            {loading ? '—' : `${orders.length} pedidos`}
-          </p>
+          <h1 style={{ fontSize: '22px', fontWeight: 700, letterSpacing: '-0.03em', color: '#fafafa', marginBottom: 3 }}>Vendas</h1>
+          <p style={{ fontSize: '13px', color: '#52525b' }}>{loading ? '—' : `${orders.length} pedidos`}</p>
         </div>
         <button
           onClick={openCreate}
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 8,
-            padding: '8px 14px', fontSize: '13px', fontWeight: 500, cursor: 'pointer',
-            transition: 'background 0.15s', letterSpacing: '-0.01em',
+            padding: '10px 16px', fontSize: '14px', fontWeight: 500, cursor: 'pointer',
+            transition: 'background 0.15s',
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#6d28d9'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#7c3aed'; }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#6d28d9'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#7c3aed'; }}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
-          Nova Venda
+          <span className="hidden sm:inline">Nova Venda</span>
+          <span className="sm:hidden">Nova</span>
         </button>
       </div>
 
       {/* Stats bar */}
-      <div className="grid grid-cols-3 gap-3" style={{ marginBottom: 24 }}>
+      <div className="grid grid-cols-3 gap-3" style={{ marginBottom: 20 }}>
         {[
-          { label: 'A Receber', value: fmt(pendingTotal), sub: `${pendingCount} ${pendingCount === 1 ? 'pedido' : 'pedidos'}`, color: '#fbbf24' },
-          { label: 'Recebido',  value: fmt(paidTotal), sub: `${orders.filter((o) => o.status === 'paid').length} pagos`, color: '#34d399' },
-          { label: 'Total Geral', value: fmt(pendingTotal + paidTotal), sub: `${orders.filter((o) => o.status !== 'cancelled').length} ativos`, color: '#fafafa' },
+          { label: 'A Receber', value: fmt(pendingTotal), sub: `${pendingCount} pendente${pendingCount !== 1 ? 's' : ''}`, color: '#fbbf24' },
+          { label: 'Recebido',  value: fmt(paidTotal),    sub: `${orders.filter(o => o.status === 'paid').length} pagos`, color: '#34d399' },
+          { label: 'Total',     value: fmt(pendingTotal + paidTotal), sub: `${orders.filter(o => o.status !== 'cancelled').length} ativos`, color: '#fafafa' },
         ].map(({ label, value, sub, color }) => (
-          <div key={label} style={{ background: '#111113', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '14px 16px' }}>
-            <p style={{ fontSize: '11px', fontWeight: 500, color: '#52525b', marginBottom: 6 }}>{label}</p>
-            <p style={{ fontSize: '20px', fontWeight: 700, color, letterSpacing: '-0.03em', lineHeight: 1.1 }}>{value}</p>
-            <p style={{ fontSize: '11px', color: '#3f3f46', marginTop: 3 }}>{sub}</p>
+          <div key={label} style={{ background: '#111113', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '12px 14px' }}>
+            <p style={{ fontSize: '10px', fontWeight: 500, color: '#52525b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</p>
+            <p style={{ fontSize: '17px', fontWeight: 700, color, letterSpacing: '-0.03em', lineHeight: 1.1, marginBottom: 2 }} className="text-sm lg:text-xl">{value}</p>
+            <p style={{ fontSize: '10px', color: '#3f3f46' }}>{sub}</p>
           </div>
         ))}
       </div>
 
-      {/* Table */}
       <div style={{ background: '#111113', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, overflow: 'hidden' }}>
         {error ? (
           <div style={{ textAlign: 'center', padding: '48px 0' }}>
@@ -243,109 +264,181 @@ export default function Orders() {
             </button>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
-                {['#', 'Cliente', 'Total', 'Status', 'Data', 'Ações'].map((h) => (
-                  <th key={h} style={{
-                    padding: '10px 14px', textAlign: 'left',
-                    fontSize: '11px', fontWeight: 600, color: '#52525b',
-                    textTransform: 'uppercase', letterSpacing: '0.05em',
-                  }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            {/* ── Mobile card list ────────────────────────────────────────── */}
+            <div className="block lg:hidden">
               {loading
-                ? [1, 2, 3, 4].map((i) => <SkeletonRow key={i} />)
-                : orders.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '60px 0', fontSize: '13px', color: '#3f3f46' }}>
-                      Nenhuma venda ainda.
-                    </td>
-                  </tr>
-                ) : orders.map((o) => (
-                  <tr
-                    key={o.id}
-                    style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.1s' }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = 'rgba(255,255,255,0.02)'; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'; }}
-                  >
-                    <td style={{ padding: '13px 14px', fontSize: '11px', color: '#3f3f46', fontFamily: 'monospace' }}>#{o.id}</td>
-                    <td style={{ padding: '13px 14px' }}>
-                      <p style={{ fontSize: '13px', fontWeight: 600, color: '#fafafa', letterSpacing: '-0.01em', marginBottom: 2 }}>
-                        {o.customer_name ?? `Cliente #${o.customer_id}`}
-                      </p>
-                      <p style={{ fontSize: '11px', color: '#52525b' }}>
-                        {o.items.length} {o.items.length === 1 ? 'item' : 'itens'}
-                      </p>
-                    </td>
-                    <td style={{ padding: '13px 14px', fontSize: '14px', fontWeight: 700, color: '#fafafa', letterSpacing: '-0.02em' }}>
-                      {fmt(o.total)}
-                    </td>
-                    <td style={{ padding: '13px 14px' }}><StatusBadge status={o.status} /></td>
-                    <td style={{ padding: '13px 14px', fontSize: '12px', color: '#52525b' }}>{fmtDate(o.created_at)}</td>
-                    <td style={{ padding: '13px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                ? [1, 2, 3].map(i => <SkeletonCard key={i} />)
+                : orders.length === 0
+                  ? <p style={{ textAlign: 'center', padding: '60px 0', fontSize: '13px', color: '#3f3f46' }}>Nenhuma venda ainda.</p>
+                  : orders.map((o, idx) => (
+                    <div
+                      key={o.id}
+                      style={{
+                        padding: '14px 16px',
+                        borderBottom: idx < orders.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: '14px', fontWeight: 600, color: '#fafafa', letterSpacing: '-0.01em', marginBottom: 2 }}>
+                            {o.customer_name ?? `Cliente #${o.customer_id}`}
+                          </p>
+                          <p style={{ fontSize: '11px', color: '#52525b' }}>
+                            {o.items.length} {o.items.length === 1 ? 'item' : 'itens'} · {fmtDate(o.created_at)}
+                          </p>
+                        </div>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <p style={{ fontSize: '15px', fontWeight: 700, color: '#fafafa', letterSpacing: '-0.02em', marginBottom: 4 }}>
+                            {fmt(o.total)}
+                          </p>
+                          <StatusBadge status={o.status} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         {o.status === 'pending' && (
                           <button
                             onClick={() => markPaid(o.id)}
                             disabled={markingPaidId === o.id}
                             style={{
-                              display: 'flex', alignItems: 'center', gap: 4,
-                              background: 'rgba(52,211,153,0.12)', color: '#34d399',
+                              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                              background: 'rgba(52,211,153,0.1)', color: '#34d399',
                               border: '1px solid rgba(52,211,153,0.2)',
-                              borderRadius: 7, padding: '5px 10px',
+                              borderRadius: 8, padding: '8px 0',
                               fontSize: '12px', fontWeight: 500, cursor: 'pointer',
-                              opacity: markingPaidId === o.id ? 0.6 : 1,
-                              transition: 'all 0.15s',
+                              opacity: markingPaidId === o.id ? 0.5 : 1,
                             }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.2)'; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.12)'; }}
                           >
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
-                            Pago
+                            Marcar Pago
                           </button>
                         )}
                         {o.status === 'paid' && (
                           <button
                             onClick={() => markDelivered(o.id)}
                             style={{
-                              display: 'flex', alignItems: 'center', gap: 4,
+                              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                               background: 'rgba(56,189,248,0.1)', color: '#38bdf8',
                               border: '1px solid rgba(56,189,248,0.2)',
-                              borderRadius: 7, padding: '5px 10px',
+                              borderRadius: 8, padding: '8px 0',
                               fontSize: '12px', fontWeight: 500, cursor: 'pointer',
-                              transition: 'all 0.15s',
                             }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(56,189,248,0.18)'; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(56,189,248,0.1)'; }}
                           >
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8 10-4-4" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
-                            Entregue
+                            Marcar Entregue
                           </button>
                         )}
                         <button
                           onClick={() => setDeleteConfirmId(o.id)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3f3f46', display: 'flex', padding: 4, transition: 'color 0.15s' }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#3f3f46'; }}
+                          style={{
+                            width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)',
+                            borderRadius: 8, cursor: 'pointer', color: '#f87171', flexShrink: 0,
+                          }}
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         </button>
                       </div>
-                    </td>
-                  </tr>
-                ))
+                    </div>
+                  ))
               }
-            </tbody>
-          </table>
+            </div>
+
+            {/* ── Desktop table ──────────────────────────────────────────── */}
+            <div className="hidden lg:block">
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                    {['#', 'Cliente', 'Total', 'Status', 'Data', 'Ações'].map(h => (
+                      <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: '#52525b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading
+                    ? [1, 2, 3, 4].map(i => <SkeletonRow key={i} />)
+                    : orders.length === 0
+                      ? (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: 'center', padding: '60px 0', fontSize: '13px', color: '#3f3f46' }}>Nenhuma venda ainda.</td>
+                        </tr>
+                      )
+                      : orders.map(o => (
+                        <tr key={o.id}
+                          style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.1s' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = 'rgba(255,255,255,0.02)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'; }}
+                        >
+                          <td style={{ padding: '13px 14px', fontSize: '11px', color: '#3f3f46', fontFamily: 'monospace' }}>#{o.id}</td>
+                          <td style={{ padding: '13px 14px' }}>
+                            <p style={{ fontSize: '13px', fontWeight: 600, color: '#fafafa', letterSpacing: '-0.01em', marginBottom: 2 }}>
+                              {o.customer_name ?? `Cliente #${o.customer_id}`}
+                            </p>
+                            <p style={{ fontSize: '11px', color: '#52525b' }}>{o.items.length} {o.items.length === 1 ? 'item' : 'itens'}</p>
+                          </td>
+                          <td style={{ padding: '13px 14px', fontSize: '14px', fontWeight: 700, color: '#fafafa', letterSpacing: '-0.02em' }}>{fmt(o.total)}</td>
+                          <td style={{ padding: '13px 14px' }}><StatusBadge status={o.status} /></td>
+                          <td style={{ padding: '13px 14px', fontSize: '12px', color: '#52525b' }}>{fmtDate(o.created_at)}</td>
+                          <td style={{ padding: '13px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {o.status === 'pending' && (
+                                <button onClick={() => markPaid(o.id)} disabled={markingPaidId === o.id}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 4,
+                                    background: 'rgba(52,211,153,0.12)', color: '#34d399',
+                                    border: '1px solid rgba(52,211,153,0.2)',
+                                    borderRadius: 7, padding: '5px 10px',
+                                    fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+                                    opacity: markingPaidId === o.id ? 0.6 : 1,
+                                  }}
+                                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.2)'; }}
+                                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(52,211,153,0.12)'; }}
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  Pago
+                                </button>
+                              )}
+                              {o.status === 'paid' && (
+                                <button onClick={() => markDelivered(o.id)}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 4,
+                                    background: 'rgba(56,189,248,0.1)', color: '#38bdf8',
+                                    border: '1px solid rgba(56,189,248,0.2)',
+                                    borderRadius: 7, padding: '5px 10px',
+                                    fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+                                  }}
+                                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(56,189,248,0.18)'; }}
+                                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(56,189,248,0.1)'; }}
+                                >
+                                  Entregue
+                                </button>
+                              )}
+                              <button onClick={() => setDeleteConfirmId(o.id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3f3f46', display: 'flex', padding: 4, transition: 'color 0.15s' }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#3f3f46'; }}
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                  }
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -355,12 +448,11 @@ export default function Orders() {
           <form onSubmit={handleCreate}>
             <div style={{ marginBottom: 16 }}>
               <label style={labelSt()}>Cliente <span style={{ color: '#f87171' }}>*</span></label>
-              <select required value={customerId} onChange={(e) => setCustomerId(Number(e.target.value))}
+              <select required value={customerId} onChange={e => setCustomerId(Number(e.target.value))}
                 style={{ ...inputSt(focused === 'cust'), background: '#18181b' }}
-                onFocus={() => setFocused('cust')} onBlur={() => setFocused(null)}
-              >
+                onFocus={() => setFocused('cust')} onBlur={() => setFocused(null)}>
                 <option value="">Selecione um cliente...</option>
-                {customers.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+                {customers.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
               </select>
             </div>
 
@@ -368,14 +460,14 @@ export default function Orders() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <label style={labelSt()}>Produtos <span style={{ color: '#f87171' }}>*</span></label>
                 <button type="button"
-                  onClick={() => setItems((p) => [...p, { _key: Date.now(), product_id: products[0]?.id ?? 0, quantity: 1, unit_price: products[0]?.normal_price ?? 0 }])}
+                  onClick={() => setItems(p => [...p, { _key: Date.now(), product_id: products[0]?.id ?? 0, quantity: 1, unit_price: products[0]?.normal_price ?? 0 }])}
                   style={{ fontSize: '12px', color: '#a78bfa', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
                   + Adicionar item
                 </button>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {items.map((item) => {
-                  const p = products.find((p) => p.id === item.product_id);
+                {items.map(item => {
+                  const p = products.find(p => p.id === item.product_id);
                   return (
                     <div key={item._key} style={{
                       display: 'flex', alignItems: 'center', gap: 8,
@@ -384,19 +476,19 @@ export default function Orders() {
                     }}>
                       {p?.photo_url && <img src={p.photo_url} alt={p.name} style={{ width: 34, height: 34, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />}
                       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '5fr 2fr 3fr 1fr', gap: 6, alignItems: 'center' }}>
-                        <select value={item.product_id} onChange={(e) => updateItem(item._key, 'product_id', Number(e.target.value))}
-                          style={{ ...inputSt(), padding: '5px 8px', fontSize: '12px', background: '#18181b' }}>
+                        <select value={item.product_id} onChange={e => updateItem(item._key, 'product_id', Number(e.target.value))}
+                          style={{ ...inputSt(), padding: '6px 8px', fontSize: '12px', background: '#18181b' }}>
                           <option value={0}>Produto...</option>
-                          {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                         <input type="number" min={1} value={item.quantity}
-                          onChange={(e) => updateItem(item._key, 'quantity', Number(e.target.value))}
-                          style={{ ...inputSt(), padding: '5px 8px', fontSize: '12px', textAlign: 'center' }} />
+                          onChange={e => updateItem(item._key, 'quantity', Number(e.target.value))}
+                          style={{ ...inputSt(), padding: '6px 8px', fontSize: '12px', textAlign: 'center' }} />
                         <input type="number" step="0.01" min={0} value={item.unit_price}
-                          onChange={(e) => updateItem(item._key, 'unit_price', Number(e.target.value))}
-                          style={{ ...inputSt(), padding: '5px 8px', fontSize: '12px' }} />
+                          onChange={e => updateItem(item._key, 'unit_price', Number(e.target.value))}
+                          style={{ ...inputSt(), padding: '6px 8px', fontSize: '12px' }} />
                         <button type="button" disabled={items.length === 1}
-                          onClick={() => setItems((p) => p.filter((i) => i._key !== item._key))}
+                          onClick={() => setItems(p => p.filter(i => i._key !== item._key))}
                           style={{ background: 'none', border: 'none', cursor: items.length === 1 ? 'default' : 'pointer', color: '#52525b', display: 'flex', justifyContent: 'center', opacity: items.length === 1 ? 0.3 : 1 }}>
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -420,7 +512,7 @@ export default function Orders() {
 
             <div style={{ marginBottom: 20 }}>
               <label style={labelSt()}>Observações</label>
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
+              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
                 placeholder="Tamanho, cor, prazo..."
                 onFocus={() => setFocused('notes')} onBlur={() => setFocused(null)}
                 style={{ ...inputSt(focused === 'notes'), resize: 'none' }} />
@@ -428,15 +520,15 @@ export default function Orders() {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button type="button" onClick={() => setIsCreateOpen(false)}
-                style={{ padding: '8px 14px', fontSize: '13px', color: '#71717a', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, cursor: 'pointer' }}>
+                style={{ padding: '10px 16px', fontSize: '14px', color: '#71717a', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button type="submit" disabled={submitting || !customerId}
                 style={{
-                  padding: '8px 16px', fontSize: '13px', fontWeight: 500, color: '#fff',
+                  padding: '10px 18px', fontSize: '14px', fontWeight: 500, color: '#fff',
                   background: submitting || !customerId ? '#5b21b6' : '#7c3aed',
                   border: 'none', borderRadius: 8, cursor: submitting || !customerId ? 'not-allowed' : 'pointer',
-                  opacity: submitting || !customerId ? 0.6 : 1, letterSpacing: '-0.01em',
+                  opacity: submitting || !customerId ? 0.6 : 1,
                 }}>
                 {submitting ? 'Criando...' : 'Criar Venda'}
               </button>
@@ -447,14 +539,14 @@ export default function Orders() {
 
       {deleteConfirmId !== null && (
         <Modal title="Excluir Venda" onClose={() => setDeleteConfirmId(null)}>
-          <p style={{ fontSize: '13px', color: '#a1a1aa', marginBottom: 20 }}>Tem certeza? Esta ação não pode ser desfeita.</p>
+          <p style={{ fontSize: '14px', color: '#a1a1aa', marginBottom: 24 }}>Tem certeza? Esta ação não pode ser desfeita.</p>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <button onClick={() => setDeleteConfirmId(null)}
-              style={{ padding: '8px 14px', fontSize: '13px', color: '#71717a', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, cursor: 'pointer' }}>
+              style={{ padding: '10px 16px', fontSize: '14px', color: '#71717a', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, cursor: 'pointer' }}>
               Cancelar
             </button>
             <button onClick={() => handleDelete(deleteConfirmId)}
-              style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 500, color: '#fff', background: '#dc2626', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+              style={{ padding: '10px 16px', fontSize: '14px', fontWeight: 500, color: '#fff', background: '#dc2626', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
               Excluir
             </button>
           </div>

@@ -86,7 +86,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="w-56 h-screen flex flex-col shrink-0"
+      className="hidden lg:flex w-56 h-screen flex-col shrink-0"
       style={{
         background: '#111113',
         borderRight: '1px solid rgba(255,255,255,0.06)',

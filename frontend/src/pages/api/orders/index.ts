@@ -1,27 +1,32 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../../lib/supabase';
+import { withAuth } from '../../../lib/withAuth';
 
 const VALID_STATUSES = new Set(['pending', 'paid', 'delivered', 'cancelled']);
 
-/** Move the customer's kanban card to a new stage (uses the most recent card) */
-async function moveCustomerCard(customer_id: number, kanban_status: string) {
-  await supabase
-    .from('kanban_cards')
-    .update({ status: kanban_status })
-    .eq('customer_id', customer_id);
+interface OrderItemInput {
+  product_id: number;
+  quantity: number;
+  unit_price: number;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default withAuth(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
     const skip = Number(req.query.skip ?? 0);
     const limit = Math.min(Number(req.query.limit ?? 100), 200);
+    const customerId = req.query.customer_id ? Number(req.query.customer_id) : null;
+    const statusFilter = req.query.status as string | undefined;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('orders')
       .select('*, order_items(*), customers(full_name)')
       .range(skip, skip + limit - 1)
       .order('created_at', { ascending: false });
 
+    if (customerId) query = query.eq('customer_id', customerId);
+    if (statusFilter && VALID_STATUSES.has(statusFilter)) query = query.eq('status', statusFilter);
+
+    const { data, error } = await query;
     if (error) return res.status(500).json({ detail: error.message });
 
     const result = (data ?? []).map((row: Record<string, unknown>) => ({
@@ -54,7 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const { data: createdItems, error: itemsErr } = await supabase
       .from('order_items')
-      .insert(items.map((i: { product_id: number; quantity: number; unit_price: number }) => ({
+      .insert(items.map((i: OrderItemInput) => ({
         order_id: order.id,
         product_id: i.product_id,
         quantity: i.quantity,
@@ -63,11 +68,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .select();
     if (itemsErr) return res.status(400).json({ detail: itemsErr.message });
 
-    // Auto-move kanban card to 'pedido'
-    await moveCustomerCard(customer_id, 'pedido');
+    await supabase
+      .from('kanban_cards')
+      .update({ status: 'pedido' })
+      .eq('customer_id', customer_id);
 
     return res.status(201).json({ ...order, items: createdItems, customer_name: null });
   }
 
   return res.status(405).json({ detail: 'Method not allowed' });
-}
+});

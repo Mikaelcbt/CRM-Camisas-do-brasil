@@ -60,8 +60,21 @@ export const deleteProduct = (id: number): Promise<{ message: string }> =>
   fetchAPI(`/api/products/${id}`, { method: 'DELETE' });
 
 // Orders
-export const getOrders = (skip = 0, limit = 100): Promise<Order[]> =>
-  fetchAPI(`/api/orders?skip=${skip}&limit=${limit}`);
+export interface OrderFilters {
+  customer_id?: number;
+  status?: string;
+}
+
+export const getOrders = (
+  skip = 0,
+  limit = 100,
+  filters?: OrderFilters,
+): Promise<Order[]> => {
+  const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+  if (filters?.customer_id) params.set('customer_id', String(filters.customer_id));
+  if (filters?.status) params.set('status', filters.status);
+  return fetchAPI(`/api/orders?${params}`);
+};
 
 export const getOrder = (id: number): Promise<Order> =>
   fetchAPI(`/api/orders/${id}`);

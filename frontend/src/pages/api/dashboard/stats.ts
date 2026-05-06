@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { supabase } from '../../../lib/supabase';
+import { withAuth } from '../../../lib/withAuth';
 
-export default async function handler(_req: NextApiRequest, res: NextApiResponse) {
+export default withAuth(async function handler(_req: NextApiRequest, res: NextApiResponse) {
   try {
     const [customersRes, productsRes] = await Promise.all([
       supabase.from('customers').select('*', { count: 'exact', head: true }),
@@ -24,7 +25,7 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
     ]);
 
     const monthlyRevenue = (monthlyData ?? [])
-      .filter((o) => o.status === 'paid')
+      .filter(o => o.status === 'paid')
       .reduce((sum: number, o: { total: number }) => sum + Number(o.total), 0);
 
     const pendingList = pendingData ?? [];
@@ -44,7 +45,7 @@ export default async function handler(_req: NextApiRequest, res: NextApiResponse
         created_at: o.created_at,
       })),
     });
-  } catch (e) {
+  } catch {
     res.status(500).json({ detail: 'Internal server error' });
   }
-}
+});
